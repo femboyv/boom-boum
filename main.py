@@ -304,20 +304,6 @@ class player_class:
             rect_cannon_sprite_rotated,
         )
 
-    def turn_toward_vector(  ## coulb be patched
-        self,
-        vector_to_turn_toward: pygame.Vector2,
-        vector_turning: pygame.Vector2,
-        speed: float,
-    ):
-
-        vector_output = vector_turning.copy()
-        if vector_to_turn_toward != pygame.Vector2(0, 0):
-            vector_output = vector_output.slerp(vector_to_turn_toward, speed)
-            vector_output.normalize_ip()
-
-        return vector_output  # to not return none when vector to turn toward is null
-
     def turning(
         self,
         vector_to_turn_too: pygame.Vector2,
@@ -369,11 +355,13 @@ class player_class:
 
     def turn_right(self, vector_turning: pygame.Vector2, speed: float):
 
-        return vector_turning.rotate(speed)
+        vector_output = vector_turning.copy()
+        return vector_output.rotate(speed / fps)
 
     def turn_left(self, vector_turning: pygame.Vector2, speed: float):
 
-        return vector_turning.rotate(-speed)
+        vector_output = vector_turning.copy()
+        return vector_output.rotate(-speed / fps)
 
     def move(self, speed: pygame.Vector2):
         self.x += speed.x
@@ -438,9 +426,6 @@ class player_class:
         self.cannon_sprite_angle = self.turning(
             self.direction_cannon, self.cannon_sprite_angle, self.cannon_speed_turn
         )
-        self.sprite_angle = self.turning(
-            self.direction, self.sprite_angle, self.sprite_speed_turn
-        )
 
         if self.tick_since_last_bullet < self.bullet_reload_time:
             self.tick_since_last_bullet += 1
@@ -450,6 +435,9 @@ class player_class:
             self.handle_buttons_press()
 
             self.direction = manette.movement_axis
+            self.sprite_angle = self.turning(
+                self.direction, self.sprite_angle, self.sprite_speed_turn
+            )
 
             if manette.camera_axis == pygame.Vector2(0, 0):
                 self.direction_cannon = self.cannon_sprite_angle
@@ -502,7 +490,7 @@ player_keyboard = player_class(
 def debugging(activate: bool):
 
     if activate:
-        print(player_keyboard.sprite_angle)
+
         pygame.draw.line(
             screen,
             "red",
