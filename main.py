@@ -46,11 +46,6 @@ class keyboard_class:
         self.pressed_keys = []
         self.mouse_position = pygame.Vector2(pygame.mouse.get_pos())
 
-        self.LEFT_CLICK = "left click"
-        self.RIGHT_CLICK = "right click"
-        self.MIDDLE_CLICK = "middle click"
-        self.NEAR_CLICK = "near click"
-        self.FAR_CLICK = "far click"
         self.click_map = {
             0: "left click",
             1: "right click",
@@ -161,26 +156,36 @@ manette = manette_class(0, 0.3)
 all_bullets = []  # list of all instance of bullet (idk where to put it..)
 
 
-class bullet_class:
+class bullet_class(pygame.sprite.Sprite):
     def __init__(
         self,
         x: float,
         y: float,
-        sprite: pygame.Surface,
+        image: pygame.Surface,
         speed: float,
         direction: pygame.Vector2,
+        origine,  # can't put :player_class 'cause it's defined after bullet
     ):
+        pygame.sprite.Sprite.__init__(self)
         self.x = x
         self.y = y
-        self.sprite = sprite
+        self.image = image
         self.speed = speed
         self.direction = direction
-        self.rect = sprite.get_rect()
+        self.mask = pygame.Mask((image.get_rect().width, image.get_rect().height), True)
+        self.rect = self.image.get_rect()
+
         self.exist = True
         all_bullets.append(self)
 
+        if origine == player_keyboard:
+            self.object_to_check_collision = player_manette
+        if origine == player_manette:
+            self.object_to_check_collision = player_keyboard
+
     def step(self):
         if self.exist:
+
             self.draw_self(self.direction)
             self.x += self.direction.x * self.speed
             self.y += self.direction.y * self.speed
@@ -190,17 +195,25 @@ class bullet_class:
             ):  # when out of borders (border of the screen)
                 self.destroy()
 
+            if pygame.sprite.collide_mask(self, self.object_to_check_collision):
+
+                self.destroy()
+
     def draw_self(self, image_angle: pygame.Vector2):
 
-        rotated_sprite = pygame.transform.rotate(
-            self.sprite, -image_angle.as_polar()[1] - 90
+        rotated_image = pygame.transform.rotate(
+            self.image, -image_angle.as_polar()[1] - 90
         )
 
-        rect_sprite_rotated = rotated_sprite.get_rect(center=(self.x, self.y))
+        rect_image_rotated = rotated_image.get_rect(center=(self.x, self.y))
+
+        # updating each time the sprite moves or rotate
+        self.mask = pygame.mask.from_surface(rotated_image)
+        self.rect = rect_image_rotated
 
         screen.blit(
-            rotated_sprite,
-            rect_sprite_rotated,
+            rotated_image,
+            rect_image_rotated,
         )
 
     def destroy(self):
@@ -211,7 +224,7 @@ class bullet_class:
 ## player ##
 
 
-class player_class:
+class player_class(pygame.sprite.Sprite):
 
     def __init__(
         self,
@@ -219,37 +232,42 @@ class player_class:
         y: int,
         direction: int,
         is_controlled_by_manette: bool,
-        sprite: pygame.Surface,
-        cannon_sprite: pygame.Surface,
-        bullet_sprite: pygame.Surface,
+        image: pygame.Surface,
+        cannon_image: pygame.Surface,
+        bullet_image: pygame.Surface,
         speed_per_sec: int,
         cannon_speed_turn: float,
-        sprite_speed_turn: float,
+        image_speed_turn: float,
         bullet_speed: float,
         bullet_reload_time: float,
     ):
+        pygame.sprite.Sprite.__init__(self)
 
         self.x = x
         self.y = y
 
-        self.sprite = sprite  # the spaceship
-        self.cannon_sprite = cannon_sprite
-        self.bullet_sprite = bullet_sprite
+        self.image = image  # the spaceship
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect = image.get_rect()
+
+        self.cannon_image = cannon_image
+        self.bullet_image = bullet_image
 
         self.direction = pygame.Vector2.from_polar((1, direction))
         self.direction: pygame.Vector2
-        self.sprite_angle = self.direction.copy()
+        self.image_angle = self.direction.copy()
 
         self.direction_cannon = self.direction.copy()
-        self.cannon_sprite_angle = self.direction.copy()
+        self.cannon_image_angle = self.direction.copy()
 
         self.is_controlled_by_manette = is_controlled_by_manette
 
         self.max_speed = speed_per_sec / fps
 
         self.cannon_speed_turn = cannon_speed_turn
-        self.sprite_speed_turn = sprite_speed_turn
+        self.image_speed_turn = image_speed_turn
         self.bullet_speed = bullet_speed
+
         self.bullet_reload_time = bullet_reload_time
         self.tick_since_last_bullet = 0
         if self.is_controlled_by_manette:
@@ -273,7 +291,7 @@ class player_class:
                 "Left Trigger": "move",
                 "Right Trigger": "shoot",
             }
-        else:
+        else:  # keyboard
             self.key_map = {
                 "d": "turn right",
                 "q": "turn left",
@@ -282,26 +300,31 @@ class player_class:
             }
 
     def draw_spaceship(self, image_angle: pygame.Vector2):
-        rotated_sprite = pygame.transform.rotate(
-            self.sprite, -image_angle.as_polar()[1] - 90
+        rotated_image = pygame.transform.rotate(
+            self.image, -image_angle.as_polar()[1] - 90
         )
 
-        rect_sprite_rotated = rotated_sprite.get_rect(center=(self.x, self.y))
-        screen.blit(rotated_sprite, rect_sprite_rotated)
+        rect_image_rotated = rotated_image.get_rect(center=(self.x, self.y))
+
+        # updating each time the sprite moves or rotate
+        self.mask = pygame.mask.from_surface(rotated_image)
+        self.rect = rect_image_rotated
+
+        screen.blit(rotated_image, rect_image_rotated)
 
     def draw_cannon(self, image_angle: pygame.Vector2):
 
-        rotated_cannon_sprite = pygame.transform.rotate(
-            self.cannon_sprite, -image_angle.as_polar()[1] - 90
+        rotated_cannon_image = pygame.transform.rotate(
+            self.cannon_image, -image_angle.as_polar()[1] - 90
         )
 
-        rect_cannon_sprite_rotated = rotated_cannon_sprite.get_rect(
+        rect_cannon_image_rotated = rotated_cannon_image.get_rect(
             center=(self.x, self.y)
         )
 
         screen.blit(
-            rotated_cannon_sprite,
-            rect_cannon_sprite_rotated,
+            rotated_cannon_image,
+            rect_cannon_image_rotated,
         )
 
     def turning(
@@ -310,6 +333,7 @@ class player_class:
         vector_turning: pygame.Vector2,
         speed: float,
     ):
+
         speed_per_second = speed / fps  # in degrees
 
         if (
@@ -338,7 +362,7 @@ class player_class:
                         vector_turning, speed_per_second
                     )
 
-            elif angle_between_vector > 0:
+            else:
 
                 if abs(angle_between_vector) < 180:
                     output_vector = pygame.math.Vector2.rotate(
@@ -374,7 +398,7 @@ class player_class:
 
             match action_to_do:
                 case "move":
-                    self.move(self.sprite_angle)
+                    self.move(self.image_angle)
                 case "shoot":
                     self.shoot()
                 case "nothing":
@@ -388,18 +412,18 @@ class player_class:
 
                 match action_to_do:
                     case "move":
-                        self.move(self.sprite_angle)
+                        self.move(self.image_angle)
                     case "shoot":
                         self.shoot()
                     case "nothing":
                         "do nothing"
                     case "turn right":
-                        self.sprite_angle = self.turn_right(
-                            self.sprite_angle, self.sprite_speed_turn
+                        self.image_angle = self.turn_right(
+                            self.image_angle, self.image_speed_turn
                         )
                     case "turn left":
-                        self.sprite_angle = self.turn_left(
-                            self.sprite_angle, self.sprite_speed_turn
+                        self.image_angle = self.turn_left(
+                            self.image_angle, self.image_speed_turn
                         )
 
     def get_mouse_position_relative_to_player(self):
@@ -407,24 +431,31 @@ class player_class:
             keyboard.mouse_position[0] - self.x, keyboard.mouse_position[1] - self.y
         )
 
+    def update_rect_to_position(self):
+        rect_output = self.rect.copy()
+        rect_output.x = self.x
+        rect_output.y = self.y
+        return rect_output
+
     def shoot(self):
         if self.tick_since_last_bullet == self.bullet_reload_time:
             self.tick_since_last_bullet = 0
             return bullet_class(
                 self.x,
                 self.y,
-                self.bullet_sprite,
+                self.bullet_image,
                 self.bullet_speed,
-                self.cannon_sprite_angle,
+                self.cannon_image_angle,
+                self,
             )
 
     def step(self):
 
-        self.draw_spaceship(self.sprite_angle)
-        self.draw_cannon(self.cannon_sprite_angle)
+        self.draw_spaceship(self.image_angle)
+        self.draw_cannon(self.cannon_image_angle)
 
-        self.cannon_sprite_angle = self.turning(
-            self.direction_cannon, self.cannon_sprite_angle, self.cannon_speed_turn
+        self.cannon_image_angle = self.turning(
+            self.direction_cannon, self.cannon_image_angle, self.cannon_speed_turn
         )
 
         if self.tick_since_last_bullet < self.bullet_reload_time:
@@ -435,23 +466,23 @@ class player_class:
             self.handle_buttons_press()
 
             self.direction = manette.movement_axis
-            self.sprite_angle = self.turning(
-                self.direction, self.sprite_angle, self.sprite_speed_turn
+            self.image_angle = self.turning(
+                self.direction, self.image_angle, self.image_speed_turn
             )
 
             if manette.camera_axis == pygame.Vector2(0, 0):
-                self.direction_cannon = self.cannon_sprite_angle
+                self.direction_cannon = self.cannon_image_angle
             else:
                 self.direction_cannon = manette.camera_axis
 
         else:  ## keyboard
             self.handle_key_press()
-            self.cannon_sprite_angle = self.turning(
-                self.direction_cannon, self.cannon_sprite_angle, self.cannon_speed_turn
+            self.cannon_image_angle = self.turning(
+                self.direction_cannon, self.cannon_image_angle, self.cannon_speed_turn
             )
             mouse_position_relative = self.get_mouse_position_relative_to_player()
             if keyboard.mouse_position == pygame.Vector2(0, 0):
-                self.direction_cannon = self.cannon_sprite_angle
+                self.direction_cannon = self.cannon_image_angle
             else:
                 self.direction_cannon = mouse_position_relative.normalize()
 
