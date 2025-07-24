@@ -1,5 +1,8 @@
 import pygame
 import json
+import random
+import socket
+import string
 
 pygame.init()
 pygame.joystick.init()
@@ -15,24 +18,136 @@ running = True
 fps = 100
 
 
-# ALORS CLASS CAMERA
-# CAMERA RECT SCREEN ETC
-# CAMERA SHOW
-# DINGUERIE
-# OMG
-# LET HER COOK
+## connection stuff ##
+
+
+def id_generator(size: int = 5):
+    output = []
+    for _ in range(size):
+        output.append(
+            random.choice(
+                string.digits + string.ascii_uppercase + string.ascii_lowercase
+            )
+        )
+    return "".join(output)
+
+
+id = id_generator()
+
+# better to put this at first
+
+
+class server_class:
+    def __init__(self):
+        self.address = socket.gethostbyname(
+            socket.gethostname()
+        )  # it's host so it's own ip
+        self.port = 5000
+
+
+server = server_class()
+
+
+class client_class:
+    def connect(
+        self, port: int, addr: str = socket.gethostbyname(socket.gethostname())
+    ):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((addr, port))
+        return s
+
+    def __init__(self):
+        self.port = 5000 + random.randint(1, 1000)
+        self.address = socket.gethostbyname(socket.gethostname())
+
+        print("port=", self.port, "addr=", self.address)
+        print("triying connect to", server.port, ",", server.address)
+
+        self.socket = self.connect(server.port, server.address)
+        print("connected to", server.port, ",", server.address)
+        self.send_to_server(str(player_keyboard))
+
+    def get_0_before_int(self, number: int | str, length_expected: int) -> str:
+        """get 0 before the int so it correspond to a certain length (eg: input 1,4 it will output 0001)"""
+        if isinstance(number, int):
+            number = str(number)
+
+        number_length = len(number)
+        if number_length > length_expected:
+            raise ValueError(
+                "Number length is greater to expected length, increment expected length or lower number"
+            )
+        for _ in range(length_expected - number_length):
+            number = "0" + number
+
+        return number
+
+    def send_to_server(self, info: str, intro_length: int = 4):
+        """the intro length is the number of number that is sent at start of message to give the length of the message \n
+        it should be the same in the server and in the client"""
+
+        output_to_send = self.get_0_before_int(info.__len__(), intro_length) + info
+
+        self.socket.send(output_to_send.encode("utf-8"))
+
+    def receive_from_server(self, intro_length: int = 4):
+        """the intro length is the number of number that is sent at start of message to give the length of the message \n
+        it should be the same in the server and in the client"""
+
+        length_of_message = self.socket.recv(intro_length)
+        length_of_message = length_of_message.decode("utf-8")
+
+        if length_of_message == "":  # 'cause it's disconnected if it received that
+            return None
+
+        length_of_message = int(length_of_message)
+
+        output = self.socket.recv(length_of_message)
+
+        output = output.decode("utf-8")
+
+        return output
+
+    def step(self):
+
+        client.send_to_server(
+            str(player_keyboard)
+        )  # must be before receive 'cause server is receive then send
+        message = self.receive_from_server()
+
+        if message == "":
+            self.disconnect()
+
+            global running
+            running = False
+
+        else:
+            print(message, "received")
+
+    def disconnect(self):
+        print("disconnected :<")
+        self.socket.shutdown(1)
+        self.socket.close()
+        self.is_client_connected_to_server = False
+
+
+## camera and all screen stuff ##
+all_cameras = []
 
 
 class camera_class:
     def __init__(self, rect: pygame.Rect):
         self.rect = rect
         self.screen = pygame.Surface((rect.width, rect.height))
+        all_cameras.append(self)
 
     def reset_screen(self):  # must be called
         self.screen.fill("black")
 
-    def show(self, image: pygame.Surface, destination: pygame.Rect | tuple[int, int]):
-        if isinstance(destination, tuple[int, int]):
+    def show_on_camera(
+        self, image: pygame.Surface, destination: pygame.Rect | tuple[int, int]
+    ):
+        if isinstance(destination, tuple):
             destination = image.get_rect(x=destination[0], y=destination[1])
 
         relative_destination = pygame.Rect(
@@ -48,35 +163,22 @@ class camera_class:
             self.screen.blit(image, relative_destination)
 
 
-camera_manette = camera_class(
-    pygame.Rect(0, 0, screen.get_width() / 2, screen.get_height())
+camera_keyboard = camera_class(
+    pygame.Rect(0, 0, screen.get_width(), screen.get_height())
 )
 
-## palette ##
 
+def show(image: pygame.Surface, destination: pygame.Rect | tuple[int, int]):
+    """
+    make an image appering to camera
+    """
 
-def load_palette() -> list:
-    def dict_to_color(color_dict: dict):
-        return pygame.Color(
-            color_dict["r"], color_dict["g"], color_dict["b"], color_dict["a"]
-        )
+    if isinstance(destination, tuple):
+        destination = image.get_rect(x=destination[0], y=destination[1])
 
-    with open("palette.txt", "r") as file:
-        string_in_file = file.read()
-        palette_list_dict = json.loads(string_in_file)
-        palette_list_color = []
-
-        for color_dict in palette_list_dict:
-            palette_list_color.append(dict_to_color(color_dict))
-        return palette_list_color
-
-
-PALETTE = load_palette()
-
-WHITE = PALETTE[0]
-GRAY = PALETTE[1]
-BLUE = PALETTE[2]
-BLACK = PALETTE[3]
+    for camera in all_cameras:
+        camera: camera_class
+        camera.show_on_camera(image, destination)
 
 
 ## keyboard and mouse ##
@@ -116,80 +218,6 @@ class keyboard_class:
 keyboard = keyboard_class()
 
 
-## manette ##
-class manette_class:
-    def __init__(self, id, dead_zone_radius):
-        self.joysitck = pygame.joystick.Joystick(id)
-        self.joysitck.init()
-        print(self.joysitck.get_name(), "connected")
-
-        self.movement_axis = pygame.Vector2(0, 0)
-        self.camera_axis = pygame.Vector2(0, 0)
-
-        self.buttons_pressed = []
-        self.key_map = {
-            0: "A Button",
-            1: "B Button",
-            2: "X Button",
-            3: "Y Button",
-            4: "- Button",
-            5: "Home Button",
-            6: "+ Button",
-            7: "L. Stick In",
-            8: "R. Stick In",
-            9: "Left Bumper",
-            10: "Right Bumper",
-            11: "D-pad Up",
-            12: "D-pad Down",
-            13: "D-pad Left",
-            14: "D-pad Right",
-            15: "Capture Button",
-            16: "Left Trigger",
-            17: "Right Trigger",
-        }
-
-        self.dead_zone_radius = dead_zone_radius
-
-    def step(self):
-
-        ## movmement axis ##
-        self.movement_axis = pygame.Vector2(
-            self.joysitck.get_axis(0), self.joysitck.get_axis(1)
-        )
-        if self.movement_axis.length() < self.dead_zone_radius:
-            self.movement_axis = pygame.Vector2(0, 0)
-
-        elif self.movement_axis.length() > 1:
-            self.movement_axis = self.movement_axis.normalize()
-
-        ## camera axis ##
-        self.camera_axis = pygame.Vector2(
-            self.joysitck.get_axis(2), self.joysitck.get_axis(3)
-        )
-        if self.camera_axis.length() < self.dead_zone_radius:
-            self.camera_axis = pygame.Vector2(0, 0)
-
-        elif self.camera_axis.length() > 1:
-            self.camera_axis = self.camera_axis.normalize()
-
-        ## key ##
-        self.buttons_pressed = []
-        for button_number in range(16):  ## number of button + 1 for the 0 at start
-            if self.joysitck.get_button(button_number):
-                self.buttons_pressed.append(self.key_map[button_number])
-        # trigger are not button but axis
-        # axis is at 0 at start, pressed it's a little bit less than 1 and released at -1
-
-        if self.joysitck.get_axis(4) > 0:  # left trigger
-            self.buttons_pressed.append(self.key_map[16])
-
-        if self.joysitck.get_axis(5) > 0:  # right trigger
-            self.buttons_pressed.append(self.key_map[17])
-
-
-manette = manette_class(0, 0.3)
-
-
 ## bullet ##
 
 all_bullets = []  # list of all instance of bullet (idk where to put it..)
@@ -209,9 +237,6 @@ class bullet_class(pygame.sprite.Sprite):
         self.x = x
         self.y = y
 
-        self.relative_x = self.x - player_manette.x_of_screen
-        self.relative_y = self.y - player_manette.y_of_screen
-
         self.image = image
 
         self.speed = speed
@@ -223,32 +248,18 @@ class bullet_class(pygame.sprite.Sprite):
         self.exist = True
         all_bullets.append(self)
 
-        if origine == player_keyboard:
-            self.object_to_check_collision = player_manette
-        if origine == player_manette:
-            self.object_to_check_collision = player_keyboard
-
     def step(self):
         if self.exist:
 
-            self.x += self.direction.x * self.speed
-            self.y += self.direction.y * self.speed
-
-            self.relative_x = self.x - player_manette.x_of_screen
-            self.relative_y = self.y - player_manette.y_of_screen
+            self.move()
 
             self.draw_self(self.direction)
 
-            if not screen.get_rect().collidepoint(
-                self.relative_x, self.relative_y
-            ):  # when out of borders (border of the screen)
-                self.destroy()
-                print("bitch")
+            # if pygame.sprite.collide_mask(
+            #     self, self.object_to_check_collision
+            # ):  # collision with other player
 
-            elif pygame.sprite.collide_mask(self, self.object_to_check_collision):
-
-                self.destroy()
-                print("damm")
+            #     self.destroy()
 
     def draw_self(self, image_angle: pygame.Vector2):
 
@@ -258,21 +269,20 @@ class bullet_class(pygame.sprite.Sprite):
 
         rect_image_rotated = rotated_image.get_rect(
             center=(
-                self.relative_x,
-                self.relative_y,
+                self.x,
+                self.y,
             )
         )
-
-        print(rect_image_rotated, player_manette.x_of_screen, self.y)
 
         # updating each time the sprite moves or rotate
         self.mask = pygame.mask.from_surface(rotated_image)
         self.rect = rect_image_rotated
 
-        player_manette.screen.blit(
-            rotated_image,
-            rect_image_rotated,
-        )
+        show(rotated_image, rect_image_rotated)
+
+    def move(self):
+        self.x += self.direction.x * self.speed
+        self.y += self.direction.y * self.speed
 
     def destroy(self):
         self.exist = False
@@ -290,6 +300,7 @@ class player_class(pygame.sprite.Sprite):
         y: int,
         direction: int,
         is_controlled_by_manette: bool,
+        camera: camera_class,
         image: pygame.Surface,
         cannon_image: pygame.Surface,
         bullet_image: pygame.Surface,
@@ -304,16 +315,18 @@ class player_class(pygame.sprite.Sprite):
         self.x = x
         self.y = y
 
-        self.screen = pygame.Surface((screen.get_width() / 2, screen.get_height()))
-        self.MIDDLE_SCREEN = (self.screen.get_width() / 2, self.screen.get_height() / 2)
+        self.camera = camera
+
+        self.camera_rect = self.camera.rect
+        self.MIDDLE_SCREEN = (self.camera_rect.width / 2, self.camera_rect.height / 2)
 
         if is_controlled_by_manette:
-            self.x_of_screen = x - self.MIDDLE_SCREEN[0] + MIDDLE_SCREEN[0]
-            self.y_of_screen = y - self.MIDDLE_SCREEN[1] + MIDDLE_SCREEN[1]
+            self.camera_rect.x = x - self.MIDDLE_SCREEN[0] + MIDDLE_SCREEN[0]
+            self.camera_rect.y = y - self.MIDDLE_SCREEN[1] + MIDDLE_SCREEN[1]
 
         else:
-            self.x_of_screen = x - self.MIDDLE_SCREEN[0]
-            self.y_of_screen = y - self.MIDDLE_SCREEN[1]
+            self.camera_rect.x = x - self.MIDDLE_SCREEN[0]
+            self.camera_rect.y = y - self.MIDDLE_SCREEN[1]
 
         self.image = image  # the spaceship
         self.mask = pygame.mask.from_surface(self.image)
@@ -325,8 +338,10 @@ class player_class(pygame.sprite.Sprite):
         self.direction = pygame.Vector2.from_polar((1, direction))
         self.direction: pygame.Vector2
         self.image_angle = self.direction.copy()
-
+        # the direction is where it wants to be watching, the objective
+        # the image angle is where it is watching
         self.direction_cannon = self.direction.copy()
+        self.relative_direction_cannon = self.direction.copy()
         self.cannon_image_angle = self.direction.copy()
 
         self.is_controlled_by_manette = is_controlled_by_manette
@@ -339,6 +354,7 @@ class player_class(pygame.sprite.Sprite):
 
         self.bullet_reload_time = bullet_reload_time
         self.tick_since_last_bullet = 0
+
         if self.is_controlled_by_manette:
             self.key_map = {
                 "A Button": "nothing",
@@ -368,18 +384,33 @@ class player_class(pygame.sprite.Sprite):
                 "left click": "shoot",
             }
 
+    def __str__(self):
+        return json.dumps(
+            {
+                "type": "player info",
+                "id": id,
+                "x": round(self.x),
+                "y": round(self.y),
+                "image_angle": round(self.image_angle.as_polar()[1], 1),
+                "cannon_image_angle": round(self.cannon_image_angle.as_polar()[1], 1),
+            }
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
     def draw_spaceship(self, image_angle: pygame.Vector2):
         rotated_image = pygame.transform.rotate(
             self.image, -image_angle.as_polar()[1] - 90
         )
 
-        rect_image_rotated = rotated_image.get_rect(center=(self.MIDDLE_SCREEN))
+        rect_image_rotated = rotated_image.get_rect(center=(self.x, self.y))
 
         # updating each time the sprite moves or rotate
         self.mask = pygame.mask.from_surface(rotated_image)
         self.rect = rect_image_rotated
 
-        self.screen.blit(rotated_image, rect_image_rotated)
+        show(rotated_image, rect_image_rotated)
 
     def draw_cannon(self, image_angle: pygame.Vector2):
 
@@ -388,16 +419,16 @@ class player_class(pygame.sprite.Sprite):
         )
 
         rect_cannon_image_rotated = rotated_cannon_image.get_rect(
-            center=(self.MIDDLE_SCREEN)
+            center=(self.x, self.y)
         )
 
-        self.screen.blit(
-            rotated_cannon_image,
-            rect_cannon_image_rotated,
-        )
+        show(rotated_cannon_image, rect_cannon_image_rotated)
+
+    def camera_follow_self(self, camera: camera_class):
+        camera.rect.center = (self.x, self.y)
 
     def get_coordinates_relative_to_screen(self, x, y):
-        return pygame.Vector2(x - self.x_of_screen, y - self.y_of_screen)
+        return pygame.Vector2(x - self.camera_rect.x, y - self.camera_rect.y)
 
     def turning(
         self,
@@ -476,6 +507,11 @@ class player_class(pygame.sprite.Sprite):
                 case "nothing":
                     "do nothing"
 
+    def get_direction_relative_to_another(
+        self, reference_direction: pygame.Vector2, moving_direction: pygame.Vector2
+    ):
+        return moving_direction.rotate(reference_direction.as_polar()[1])
+
     def handle_key_press(self):
 
         for key_pressed in keyboard.pressed_keys:
@@ -500,10 +536,8 @@ class player_class(pygame.sprite.Sprite):
 
     def get_mouse_position_relative_to_player(self):
         return pygame.Vector2(
-            (keyboard.mouse_position.x - self.MIDDLE_SCREEN[0])
-            - self.get_coordinates_relative_to_screen(self.x, self.y).x,
-            keyboard.mouse_position.y
-            - self.get_coordinates_relative_to_screen(self.x, self.y).y,
+            (keyboard.mouse_position.x - MIDDLE_SCREEN[0]) - self.MIDDLE_SCREEN[0],
+            keyboard.mouse_position.y - self.MIDDLE_SCREEN[1],
         )
 
     def update_rect_to_position(self):
@@ -529,26 +563,41 @@ class player_class(pygame.sprite.Sprite):
         self.draw_spaceship(self.image_angle)
         self.draw_cannon(self.cannon_image_angle)
 
+        self.camera_follow_self(self.camera)
+
         self.cannon_image_angle = self.turning(
-            self.direction_cannon, self.cannon_image_angle, self.cannon_speed_turn
+            self.relative_direction_cannon,
+            self.cannon_image_angle,
+            self.cannon_speed_turn,
         )
 
         if self.tick_since_last_bullet < self.bullet_reload_time:
             self.tick_since_last_bullet += 1
 
-        if self.is_controlled_by_manette:
+        if self.is_controlled_by_manette:  ## manette
 
             self.handle_buttons_press()
 
             self.direction = manette.movement_axis
+
             self.image_angle = self.turning(
                 self.direction, self.image_angle, self.image_speed_turn
             )
 
+            self.relative_direction_cannon = self.get_direction_relative_to_another(
+                self.image_angle, self.direction_cannon
+            )  # relative to the direction of the spaceship
+
             if manette.camera_axis == pygame.Vector2(0, 0):
-                self.direction_cannon = self.cannon_image_angle
+                self.direction_cannon = self.direction_cannon.rotate(
+                    -self.image_angle.as_polar()[1]
+                )
+
             else:
                 self.direction_cannon = manette.camera_axis
+
+            # the direction is where it wants to be watching, the objective
+            # the image angle is where it is watching
 
         else:  ## keyboard
             self.handle_key_press()
@@ -564,26 +613,12 @@ class player_class(pygame.sprite.Sprite):
             pygame.draw.line(screen, "red", (0, 0), mouse_position_relative, 10)
 
 
-player_manette = player_class(
-    MIDDLE_SCREEN[0],
-    MIDDLE_SCREEN[1],
-    10,
-    True,
-    pygame.image.load("Ships\Medium\\body_02.png").convert_alpha(),
-    pygame.image.load("Weapons\Medium\Cannon\\turret_04_mk1.png").convert_alpha(),
-    pygame.image.load("Weapons\Small\Cannon\\turret_01_bullet_01.png").convert_alpha(),
-    50,
-    200,  # degrees per second
-    100,  # degrees per second
-    10,
-    10,
-)
-
 player_keyboard = player_class(
     MIDDLE_SCREEN[0],
     MIDDLE_SCREEN[1],
     10,
     False,
+    camera_keyboard,
     pygame.image.load("Ships\Medium\\body_03.png").convert_alpha(),
     pygame.image.load("Weapons\Medium\Cannon\\turret_04_mk1.png").convert_alpha(),
     pygame.image.load("Weapons\Small\Cannon\\turret_01_bullet_01.png").convert_alpha(),
@@ -595,32 +630,7 @@ player_keyboard = player_class(
 )
 
 
-def debugging(activate: bool):
-
-    if activate:
-
-        pygame.draw.line(
-            screen,
-            "red",
-            MIDDLE_SCREEN,
-            (
-                manette.movement_axis.x * 50 + MIDDLE_SCREEN[0],
-                manette.movement_axis.y * 50 + MIDDLE_SCREEN[1],
-            ),
-            5,
-        )
-
-        pygame.draw.line(
-            screen,
-            "green",
-            MIDDLE_SCREEN,
-            (
-                manette.camera_axis.x * 50 + MIDDLE_SCREEN[0],
-                manette.camera_axis.y * 50 + MIDDLE_SCREEN[1],
-            ),
-            5,
-        )
-
+client = client_class()
 
 while running:
 
@@ -628,12 +638,9 @@ while running:
         bullet: bullet_class
         bullet.step()
 
-    debugging(1)
-
-    manette.step()
     keyboard.step()
 
-    player_manette.step()
+    client.step()
 
     player_keyboard.step()
 
@@ -646,12 +653,17 @@ while running:
         elif event.type == pygame.KEYUP:
             keyboard.key_release(event.key)
 
-    screen.blit(player_manette.screen, (0, 0))
-    screen.blit(player_keyboard.screen, (screen.get_width() / 2, 0))
+    screen.blit(camera_keyboard.screen, (0, 0))
 
     pygame.display.flip()
     screen.fill("black")
-    player_manette.screen.fill("black")
-    player_keyboard.screen.fill("black")
+
+    camera_keyboard.reset_screen()
 
     clock.tick_busy_loop(fps)
+
+"""
+todo:
+    explosion on impact of bullet
+
+"""
