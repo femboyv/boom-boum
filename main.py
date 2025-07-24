@@ -299,7 +299,6 @@ class player_class(pygame.sprite.Sprite):
         x: int,
         y: int,
         direction: int,
-        is_controlled_by_manette: bool,
         camera: camera_class,
         image: pygame.Surface,
         cannon_image: pygame.Surface,
@@ -320,13 +319,8 @@ class player_class(pygame.sprite.Sprite):
         self.camera_rect = self.camera.rect
         self.MIDDLE_SCREEN = (self.camera_rect.width / 2, self.camera_rect.height / 2)
 
-        if is_controlled_by_manette:
-            self.camera_rect.x = x - self.MIDDLE_SCREEN[0] + MIDDLE_SCREEN[0]
-            self.camera_rect.y = y - self.MIDDLE_SCREEN[1] + MIDDLE_SCREEN[1]
-
-        else:
-            self.camera_rect.x = x - self.MIDDLE_SCREEN[0]
-            self.camera_rect.y = y - self.MIDDLE_SCREEN[1]
+        self.camera_rect.x = x - self.MIDDLE_SCREEN[0]
+        self.camera_rect.y = y - self.MIDDLE_SCREEN[1]
 
         self.image = image  # the spaceship
         self.mask = pygame.mask.from_surface(self.image)
@@ -344,8 +338,6 @@ class player_class(pygame.sprite.Sprite):
         self.relative_direction_cannon = self.direction.copy()
         self.cannon_image_angle = self.direction.copy()
 
-        self.is_controlled_by_manette = is_controlled_by_manette
-
         self.max_speed = speed_per_sec / fps
 
         self.cannon_speed_turn = cannon_speed_turn
@@ -355,34 +347,12 @@ class player_class(pygame.sprite.Sprite):
         self.bullet_reload_time = bullet_reload_time
         self.tick_since_last_bullet = 0
 
-        if self.is_controlled_by_manette:
-            self.key_map = {
-                "A Button": "nothing",
-                "B Button": "nothing",
-                "X Button": "nothing",
-                "Y Button": "nothing",
-                "- Button": "nothing",
-                "Home Button": "nothing",
-                "+ Button": "nothing",
-                "L. Stick In": "nothing",
-                "R. Stick In": "nothing",
-                "Left Bumper": "nothing",
-                "Right Bumper": "nothing",
-                "D-pad Up": "nothing",
-                "D-pad Down": "nothing",
-                "D-pad Left": "nothing",
-                "D-pad Right": "nothing",
-                "Capture Button": "nothing",
-                "Left Trigger": "move",
-                "Right Trigger": "shoot",
-            }
-        else:  # keyboard
-            self.key_map = {
-                "d": "turn right",
-                "q": "turn left",
-                "z": "move",
-                "left click": "shoot",
-            }
+        self.key_map = {
+            "d": "turn right",
+            "q": "turn left",
+            "z": "move",
+            "left click": "shoot",
+        }
 
     def __str__(self):
         return json.dumps(
@@ -494,19 +464,6 @@ class player_class(pygame.sprite.Sprite):
         self.x += speed.x
         self.y += speed.y
 
-    def handle_buttons_press(self):
-
-        for button_pressed in manette.buttons_pressed:
-            action_to_do = self.key_map[button_pressed]
-
-            match action_to_do:
-                case "move":
-                    self.move(self.image_angle)
-                case "shoot":
-                    self.shoot()
-                case "nothing":
-                    "do nothing"
-
     def get_direction_relative_to_another(
         self, reference_direction: pygame.Vector2, moving_direction: pygame.Vector2
     ):
@@ -574,50 +531,23 @@ class player_class(pygame.sprite.Sprite):
         if self.tick_since_last_bullet < self.bullet_reload_time:
             self.tick_since_last_bullet += 1
 
-        if self.is_controlled_by_manette:  ## manette
+        self.handle_key_press()
+        self.cannon_image_angle = self.turning(
+            self.direction_cannon, self.cannon_image_angle, self.cannon_speed_turn
+        )
+        mouse_position_relative = self.get_mouse_position_relative_to_player()
 
-            self.handle_buttons_press()
-
-            self.direction = manette.movement_axis
-
-            self.image_angle = self.turning(
-                self.direction, self.image_angle, self.image_speed_turn
-            )
-
-            self.relative_direction_cannon = self.get_direction_relative_to_another(
-                self.image_angle, self.direction_cannon
-            )  # relative to the direction of the spaceship
-
-            if manette.camera_axis == pygame.Vector2(0, 0):
-                self.direction_cannon = self.direction_cannon.rotate(
-                    -self.image_angle.as_polar()[1]
-                )
-
-            else:
-                self.direction_cannon = manette.camera_axis
-
-            # the direction is where it wants to be watching, the objective
-            # the image angle is where it is watching
-
-        else:  ## keyboard
-            self.handle_key_press()
-            self.cannon_image_angle = self.turning(
-                self.direction_cannon, self.cannon_image_angle, self.cannon_speed_turn
-            )
-            mouse_position_relative = self.get_mouse_position_relative_to_player()
-
-            if keyboard.mouse_position == pygame.Vector2(0, 0):
-                self.direction_cannon = self.cannon_image_angle
-            else:
-                self.direction_cannon = mouse_position_relative.normalize()
-            pygame.draw.line(screen, "red", (0, 0), mouse_position_relative, 10)
+        if keyboard.mouse_position == pygame.Vector2(0, 0):
+            self.direction_cannon = self.cannon_image_angle
+        else:
+            self.direction_cannon = mouse_position_relative.normalize()
+        pygame.draw.line(screen, "red", (0, 0), mouse_position_relative, 10)
 
 
 player_keyboard = player_class(
     MIDDLE_SCREEN[0],
     MIDDLE_SCREEN[1],
     10,
-    False,
     camera_keyboard,
     pygame.image.load("Ships\Medium\\body_03.png").convert_alpha(),
     pygame.image.load("Weapons\Medium\Cannon\\turret_04_mk1.png").convert_alpha(),

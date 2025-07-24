@@ -113,10 +113,12 @@ class client_class:
 
         message = self.receive_from_client()
 
-        self.load_message(message)
-
-        if message == None:
+        if message is None:
             self.disconnect()
+            return "disconnected"
+            # important to return something or the reste will run once before stopping
+
+        self.load_message(message)
 
         message_to_send = all_client_connected.copy()
 
@@ -128,7 +130,7 @@ class client_class:
         self.socket.close()
 
         self.is_client_connected_to_server = False
-        all_client_connected.remove(self)
+        all_client_connected.pop(self.id)
 
 
 server = server_class()
