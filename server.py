@@ -35,6 +35,10 @@ class server_class:
 all_client_connected = {}
 
 
+class type_of_message:  # important to put that in a class for case match statements
+    PLAYER_INFO = "player info"
+
+
 class client_class:
 
     def __init__(self, client_socket: socket.socket, client_address: str):
@@ -81,7 +85,7 @@ class client_class:
         dict_message: dict
 
         match dict_message["type"]:  # to add more type (shoot bullet etc)
-            case "player info":
+            case type_of_message.PLAYER_INFO:
                 self.info = dict_message
         return self.info
 

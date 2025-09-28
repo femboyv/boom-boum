@@ -32,9 +32,7 @@ def id_generator(size: int = 5):
     return "".join(output)
 
 
-id = id_generator()
-
-# better to put this at first
+id = id_generator()  # better to put this at start
 
 
 class server_class:
@@ -123,12 +121,17 @@ class client_class:
 
         else:
             print(message, "received")
+            return message
 
     def disconnect(self):
         print("disconnected :<")
         self.socket.shutdown(1)
         self.socket.close()
         self.is_client_connected_to_server = False
+
+
+class type_of_message:  # important to put that in a class for case match statements
+    PLAYER_INFO = "player info"
 
 
 ## camera and all screen stuff ##
@@ -357,7 +360,7 @@ class player_class(pygame.sprite.Sprite):
     def __str__(self):
         return json.dumps(
             {
-                "type": "player info",
+                "type": type_of_message.PLAYER_INFO,
                 "id": id,
                 "x": round(self.x),
                 "y": round(self.y),
@@ -560,9 +563,42 @@ player_keyboard = player_class(
 )
 
 
-client = client_class()
+class conected_player(pygame.sprite.Sprite):
+    def __init__(self, id: str, image: pygame.Surface):
+        pygame.sprite.Sprite.__init__(self)
 
+        self.id = id
+
+        self.image = image
+        self.x = 0
+        self.y = 0
+        self.direction = 90
+
+    def step(self):
+        self.show_self()
+
+    def show_self(self):
+        rotated_image = pygame.transform.rotate(self.image, self.direction)
+        rotated_image_rect = rotated_image.get_rect(center=(self.x, self.y))
+        show(self.image, rotated_image_rect)
+
+    def load_data(self, info: str):
+        info = json.loads(info)
+        info: dict
+        if info["id"] != self.id:
+            raise ValueError("does not have corresponding info")
+        if info["type"] == type_of_message.PLAYER_INFO:
+            self.x = info["x"]
+            self.y = info["y"]
+            self.direction = info["direction"]
+
+
+test_player = conected_player(0000, pygame.image.load("Ships\Big\\body_01.png"))
+
+client = client_class()  # has to be after init of player
 while running:
+
+    test_player.step()
 
     for bullet in all_bullets:
         bullet: bullet_class
